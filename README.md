@@ -7,6 +7,7 @@ This project automates the process of checking room availabilities on the Cesal 
 1. Clone this repository.
 2. Install dependencies: `pip install -r requirements.txt`.
 3. Ensure you have ChromeDriver installed in the same directory as this project or in your PATH. Ensure that ChromeDriver match the version of your Google Chrome browser. Go this website to download the right version for your [Google Chrome version](https://chromedriver.chromium.org/downloads).
+4. You need to configure your own "App Password" for you to send email automatically with the smtplib package. See [App Password tutorial](https://support.google.com/accounts/answer/185833?hl=fr)
 
 ## Usage
 
