@@ -1,14 +1,27 @@
 import argparse
+import os
 import time
 import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 import pandas as pd
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 
-def main(cesal_id, cesal_password, sender_email, sender_password, recipient_email, end_date):
+# Load environment variables
+load_dotenv()
+
+def main(end_date, headless=True):
+
+    cesal_id = os.environ.get("CESAL_ID")
+    cesal_password = os.environ.get("CESAL_PASSWORD")
+    sender_email = os.environ.get("SENDER_EMAIL")
+    sender_password = os.environ.get("SENDER_PASSWORD")
+    recipient_email = os.environ.get("RECIPIENT_EMAIL")
 
     # Check the date format is correct DD/MM/YYYY
     try:
@@ -27,7 +40,9 @@ def main(cesal_id, cesal_password, sender_email, sender_password, recipient_emai
     options = Options()
     options.add_argument("--window-size=1920,1200")
     options.add_argument("--incognito")
-    options.add_argument("--headless")
+
+    if headless:
+        options.add_argument("--headless=new")
 
     url = "https://logement.cesal-residentiel.fr/espace-resident/cesal_mon_logement_reservation.php"
 
@@ -51,7 +66,7 @@ def main(cesal_id, cesal_password, sender_email, sender_password, recipient_emai
 
     driver.find_element(By.XPATH, '//*[@id="selection_creneau"]/div[1]/div[2]/span/span[1]/span/span[2]' ).click()
     dates = driver.find_elements(By.CSS_SELECTOR, "li[class^='select2-results__option']")
-
+    print(dates)
     driver.find_element(By.XPATH, '//*[@id="selection_creneau"]/div[1]/div[2]/span/span[1]/span/span[2]').click()
 
     cols = list(['date','residence_1','residence_2','residence_3','residence_4','residence_5','residence_6'])
@@ -75,16 +90,22 @@ def main(cesal_id, cesal_password, sender_email, sender_password, recipient_emai
         time.sleep(2)
 
     for col in df.columns[1:] :
-        if 1 in list(results[col]) :
-            indice = list(results[col]).index(1)
-
-            message = f"Il y a une chambre disponible en {col} a partir du {results['date'][indice]}. Allez hurry up avant de te retrouver à la rue !"
+        if str(1) in list(df[col]) :
+            indice = list(df[col]).index(str(1))
             
+            message = MIMEMultipart()
+            message["From"] = sender_email
+            message["To"] = recipient_email
+            message["Subject"] = "Disponibilité d'appartement Cesal"
+                        
+            body = f"Il y a une chambre disponible en Résidence {str(col).split('_')[-1]} à partir du {df['date'][indice]} pour une date de départ prévue le {end_date}. Allez hurry up avant de te retrouver à la rue !"
+            message.attach(MIMEText(body, "plain", "utf-8"))
+
             try:
                 with smtplib.SMTP('smtp.gmail.com', 587) as server:
                     server.starttls()
                     server.login(sender_email, sender_password)
-                    server.sendmail(sender_email, recipient_email, message)
+                    server.sendmail(sender_email, recipient_email, message.as_string())
                     print("Email sent successfully at {}".format(datetime.now()))
             except Exception as e:
                 print(f"Email could not be sent: {str(e)}")
@@ -97,13 +118,9 @@ def main(cesal_id, cesal_password, sender_email, sender_password, recipient_emai
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape Cesal for room availabilities.")
-    parser.add_argument("--cesal_id", help="Login email for Cesal", required=True)
-    parser.add_argument("--cesal_password", help="Login password for Cesal", required=True)
-    parser.add_argument("--sender_email", help="Email to send notifications from", required=True)
-    parser.add_argument("--sender_password", help="Password for sender email", required=True)
-    parser.add_argument("--recipient_email", help="Email to send notifications to", required=True)
     parser.add_argument("--end_date", help="End date of your desired location (should be in format DD/MM/YYYY)", required=True)
-    
+    parser.add_argument("--headless", type=bool, default=True, help="Run Chrome in headless mode (default: True). Use --headless False to disable.")
+
     args = parser.parse_args()
     
-    main(args.email, args.password, args.sender_email, args.sender_password, args.recipient_email, args.time_frequency)
+    main(args.end_date, args.headless)
